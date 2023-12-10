@@ -651,7 +651,7 @@ client.on(Events.MessageCreate, async message => {
         }
 
         if (user.id === message.author.id) {
-            message.channel.send('You can\'t injur yourself! :( pls dont hurt yourself! how can i get you to not do that? want free qubits? just use !pay <@1183134058415394846> <all your money> and i pinkie promise ill double it!');
+            message.channel.send('You can\'t injure yourself! :( pls dont hurt yourself! how can i get you to not do that? want free qubits? just use !pay <@1183134058415394846> <all your money> and i pinkie promise ill double it!');
             return;
         }
 
