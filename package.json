@@ -1,0 +1,19 @@
+{
+  "name": "brook",
+  "module": "src/index.ts",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "discord.js": "^14.13.0"
+  }
+}
