@@ -21,6 +21,15 @@ if (rows.length === 0) {
     ]);
 } // there is no way to edit the currency, to keep it fair
 
+let usedDaily: {
+    [userID: string]: boolean
+} = {};
+
+// every 24 hours we clear usedDaily
+setInterval(() => {
+    usedDaily = {};
+}, 24 * 60 * 60 * 1000);
+
 async function changeMoney(user_id: string, amount: number) {
     let stmt = db.query("select * from economy where user_id = ?");
     let rows = stmt.all(user_id);
@@ -39,6 +48,7 @@ async function changeMoney(user_id: string, amount: number) {
         ]);
     }
 }
+
 
 function numberWithCommas(x: number) {
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -485,7 +495,25 @@ client.on(Events.MessageCreate, async message => {
         message.channel.send(`You gave <@${user.id}> **${numberWithCommas(amount)}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${numberWithCommas(await getMoney(message.author.id))}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${numberWithCommas(await getMoney(user.id))}**<:qubit:1183442475336093706>.\n\nNote: taxes may have been applied.`);
     }
 
-    // if user has 1182740620075352104 role
+    // if user has 1182740620075352104 role and runs !daily, we draw 100 from government (1183134058415394846) and give it to them if they arent in usedDaily with true
+    else if (message.content === '!daily') {
+        let member = await message.member!.fetch();
+        if (member.roles.cache.has('1182740620075352104')) {
+            if (usedDaily[message.author.id]) {
+                message.channel.send('You already claimed your daily <:qubit:1183442475336093706>! Stop being a greedy a' + 'ss' + '! Fuc' + 'k' + 'ing hell. F' + 'uck' + ' you.');
+                return;
+            }
+            usedDaily[message.author.id] = true;
+            // remove from government
+            await changeMoney('1183134058415394846', -100);
+            await changeMoney(message.author.id, 100);
+            // we just kinda assume the government will never go bankrupt, if it does we have bigger problems anyways
+            message.channel.send('You claimed your daily <:qubit:1183442475336093706>! You now have **' + numberWithCommas(await getMoney(message.author.id)) + '**<:qubit:1183442475336093706>.');
+        }
+        else {
+            message.channel.send('You need to be a <:brook:1182746377642578100> Staff to claim your daily staff <:qubit:1183442475336093706> ._.');
+        }
+    }
 
     // pay people in rep, but 50% tax no matter what
     else if (message.content.startsWith('!payrep ')) {
