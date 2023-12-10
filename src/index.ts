@@ -340,7 +340,10 @@ client.on(Events.MessageCreate, async message => {
                 });
             });
 
-            if (!member) continue;
+            if (!member) {
+                console.warn('Member ID ' + row.user_id + ', username ' + user.username + ' not found in guild ' + message.guild!.name);
+                continue;
+            };
 
             embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
         }
