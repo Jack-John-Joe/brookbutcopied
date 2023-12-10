@@ -345,6 +345,7 @@ client.on(Events.MessageCreate, async message => {
 
             embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
 
+            console.log('i was ' + i);
             i++;
             if (i >= 10) break;
         }
