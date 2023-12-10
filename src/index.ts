@@ -161,6 +161,14 @@ async function updateTop(message: Message<boolean>, reaction: MessageReaction) {
     ]);
 }
 
+let activeMurders: {
+    [murdererID: string]: {
+        type: 'injur' | 'kill',
+        victimID: string,
+        condition: (message: Message) => boolean,
+    }
+} = {};
+
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (user.id === '1171991184227442759') return;
     console.log('reaction');
@@ -243,6 +251,37 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
                     ]);
                 }
             }
+        }
+    }
+
+    // if knife on message that meets activemurder condition, timeout
+    if (reaction.emoji.name === 'knife' && activeMurders[user.id] && activeMurders[user.id].condition(message)) {
+        // timeout
+        let guild = await message.guild!.fetch();
+        let member = await new Promise<GuildMember | null>((resolve, reject) => {
+            guild.members.fetch(activeMurders[user.id].victimID).then(member => {
+                resolve(member);
+            }).catch(err => {
+                resolve(null);
+            });
+        });
+        if (member) {
+            if (activeMurders[user.id].type === 'kill') {
+                member.timeout(7 * 24 * 60 * 60 * 1000, 'Murdered by ' + user.username);
+            }
+            else {
+                member.timeout(24 * 60 * 60 * 1000, 'Injured by ' + user.username);
+            }
+            // remove all reactions
+            message.reactions.removeAll();
+            // send message
+            let embed = {
+                color: 0x86c7ff,
+                description: `**${member.displayName}** has been ${activeMurders[user.id].type === 'injur' ? 'injured' : 'murdered'} by <@${user.id}>!`
+            };
+            message.channel.send({ embeds: [embed] });
+            // delete from activeMurders
+            delete activeMurders[user.id];
         }
     }
 
@@ -396,10 +435,154 @@ client.on(Events.MessageCreate, async message => {
             message.channel.send('You don\'t have enough money!');
             return;
         }
-        await changeMoney(message.author.id, -amount); // make sure to await so there isnt a moment that the recipient has the money and the giver at the same time
-        await changeMoney(user.id, amount);
-        message.channel.send(`You gave <@${user.id}> **${amount}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${await getMoney(message.author.id)}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${await getMoney(user.id)}**<:qubit:1183442475336093706>.`);
+        // if their rep is >= 0, no tax. if not, we take away the same amount but only give the recipient 50% of it, taxing the other 50% away
+        let taxA = 0;
+        let stmt = db.query("select * from reputation where user_id = ?");
+        let rows = stmt.all(message.author.id);
+        if (rows.length > 0) {
+            if ((rows[0] as any).reputation < 0) {
+                taxA = Math.floor(amount / 2); // while itd be funny to ceil it up, that could lead to recipient gaining more money since it could lead to negative money
+            }
+        }
+
+        // now tax B, for recipient
+        let taxB = 0;
+        stmt = db.query("select * from reputation where user_id = ?");
+        rows = stmt.all(user.id);
+        if (rows.length > 0) {
+            if ((rows[0] as any).reputation < 0) {
+                taxB = Math.floor((amount - taxA) / 2);
+            }
+        }
+
+        // make sure to await so there isnt a moment that the recipient has the money and the giver at the same time
+        await changeMoney(message.author.id, -amount);
+        await changeMoney(user.id, amount - taxA - taxB);
+        message.channel.send(`You gave <@${user.id}> **${amount}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${await getMoney(message.author.id)}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${await getMoney(user.id)}**<:qubit:1183442475336093706>.\n\nNote: taxes may have been applied.`);
     }
+
+    // !injur <mention> is a command that then asks you to find a message of the injured person that meets a certain condition, and react to it with :knife:. regardless of if you find it or not, you lose 50 rep
+    else if (message.content.startsWith('!injur ') || message.content.startsWith('!injure ') || message.content.startsWith('!murder ') || message.content.startsWith('!kill ')) {
+        // figure out if kill or injur was used
+        let kill = false;
+        if (message.content.startsWith('!mur') || message.content.startsWith('ki')) {
+            kill = true;
+        }
+
+        let conditions: {
+            text: string,
+            condition: (message: Message) => boolean
+        }[] = [{
+            text: 'doesn\'t include the letter `e`',
+            condition: (message: Message) => {
+                return !message.content.includes('e');
+            }
+        }, {
+            text: 'is a reply',
+            condition: (message: Message) => {
+                return message.reference !== null;
+            }
+        }, {
+            text: 'has a link in it',
+            condition: (message: Message) => {
+                return message.content.includes('http://') || message.content.includes('https://');
+            }
+        }, {
+            text: 'has a mention in it',
+            condition: (message: Message) => {
+                return message.mentions.users.size > 0;
+            }
+        }, {
+            text: 'has an attachment',
+            condition: (message: Message) => {
+                return message.attachments.size > 0;
+            }
+        }, {
+            text: 'includes the letter z',
+            condition: (message: Message) => {
+                return message.content.includes('z');
+            }
+        }, {
+            text: 'includes the letter q',
+            condition: (message: Message) => {
+                return message.content.includes('q');
+            }
+        }, {
+            text: 'includes the letter x',
+            condition: (message: Message) => {
+                return message.content.includes('x');
+            }
+        }];
+
+        let user = message.mentions.users.first();
+        if (!user) {
+            message.channel.send('Please mention a user!');
+            return;
+        }
+
+        if (user.id === message.author.id) {
+            message.channel.send('You can\'t injur yourself! :( pls dont hurt yourself! how can i get you to not do that? want free qubits? just use !pay <@1183134058415394846> <all your money> and i pinkie promise ill double it!');
+            return;
+        }
+
+        if (activeMurders[message.author.id]) {
+            message.channel.send('I honestly cannot believe your lack of commitment, ' + message.author.username + '. You\'re already trying to injur someone else before completing your previous injur? You\'re a monster.\n\nWhatever. I\'ve gone ahead and cancelled your previous injur. You\'re free to injur someone else now.');
+            delete activeMurders[message.author.id];
+        }
+
+        let condition = conditions[Math.floor(Math.random() * conditions.length)];
+
+        if (!kill) {
+            message.channel.send('# Injury Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '** and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 day.\n\nNote: **50 reputation** has been deducted from your account.');
+        }
+        else {
+            message.channel.send('# Murder Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '** and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 week.\n\nNote: **250 reputation** has been deducted from your account.');
+        }
+
+        activeMurders[message.author.id] = {
+            type: kill ? 'kill' : 'injur',
+            victimID: user.id,
+            condition: condition.condition
+        };
+
+        if (!kill) {
+            // deduct 50 rep
+            let stmt = db.query("select * from reputation where user_id = ?");
+            let rows = stmt.all(message.author.id);
+            if (rows.length > 0) {
+                // update
+                db.run("update reputation set reputation = reputation - 50 where user_id = ?", [
+                    message.author.id
+                ]);
+            }
+            else {
+                // insert
+                db.run("insert into reputation (user_id, reputation) values (?, ?)", [
+                    message.author.id,
+                    -50
+                ]);
+            }
+        }
+        else {
+            // deduct 250 rep
+            let stmt = db.query("select * from reputation where user_id = ?");
+            let rows = stmt.all(message.author.id);
+            if (rows.length > 0) {
+                // update
+                db.run("update reputation set reputation = reputation - 250 where user_id = ?", [
+                    message.author.id
+                ]);
+            }
+            else {
+                // insert
+                db.run("insert into reputation (user_id, reputation) values (?, ?)", [
+                    message.author.id,
+                    -250
+                ]);
+            }
+        }
+    }
+
 
 
 
