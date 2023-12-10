@@ -21,12 +21,6 @@ if (rows.length === 0) {
     ]);
 } // there is no way to edit the currency, to keep it fair
 
-// now we have to give 51875 currency to 1183134058415394846 if it had 678906, very specific
-
-db.run("update economy set money = 730781 where user_id = ?", [
-    '1183134058415394846'
-]);
-
 async function changeMoney(user_id: string, amount: number) {
     let stmt = db.query("select * from economy where user_id = ?");
     let rows = stmt.all(user_id);
