@@ -328,7 +328,8 @@ client.on(Events.MessageCreate, async message => {
             title: 'Reputation Leaderboard',
             description: ''
         };
-        for (let i = 0; i < rows.length; i++) {
+        let i = 0;
+        while (true) {
             let row = rows[i];
             let user = await client.users.fetch(row.user_id);
             let guild = await message.guild!.fetch();
@@ -340,12 +341,12 @@ client.on(Events.MessageCreate, async message => {
                 });
             });
 
-            if (!member) {
-                console.warn('Member ID ' + row.user_id + ', username ' + user.username + ' not found in guild ' + message.guild!.name);
-                continue;
-            };
+            if (!member) continue;
 
             embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
+
+            i++;
+            if (i >= 10) break;
         }
         message.channel.send({ embeds: [embed] });
     }
