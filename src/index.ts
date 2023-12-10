@@ -331,8 +331,9 @@ client.on(Events.MessageCreate, async message => {
         for (let i = 0; i < rows.length; i++) {
             let row = rows[i];
             let user = await client.users.fetch(row.user_id);
+            let guild = await message.guild!.fetch();
             let member = await new Promise<GuildMember | null>((resolve, reject) => {
-                message.guild!.members.fetch(user).then(member => {
+                guild.members.fetch(user).then(member => {
                     resolve(member);
                 }).catch(err => {
                     resolve(null);
