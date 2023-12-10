@@ -328,11 +328,13 @@ client.on(Events.MessageCreate, async message => {
             title: 'Reputation Leaderboard',
             description: ''
         };
-        let i = 0;
+        let index = 0;
+        let leaderboardCount = 0;
         while (true) {
-            if (i >= rows.length) break;
+            if (index >= rows.length) break;
+            if (leaderboardCount >= 10) break;
 
-            let row = rows[i];
+            let row = rows[index];
             let user = await client.users.fetch(row.user_id);
             let guild = await message.guild!.fetch();
             let member = await new Promise<GuildMember | null>((resolve, reject) => {
@@ -344,15 +346,14 @@ client.on(Events.MessageCreate, async message => {
             });
 
             if (!member) {
+                index++;
                 continue;
             };
 
-            embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.reputation}** reputation\n`;
+            embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.reputation}** reputation\n`;
 
-            console.log('i was ' + i);
-
-            i++;
-            if (i >= 10) break;
+            index++;
+            leaderboardCount++;
         }
         message.channel.send({ embeds: [embed] });
     }
