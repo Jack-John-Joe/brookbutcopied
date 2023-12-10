@@ -499,7 +499,7 @@ client.on(Events.MessageCreate, async message => {
     else if (message.content === '!daily') {
         let member = await message.member!.fetch();
         if (member.roles.cache.has('1182740620075352104')) {
-            if (usedDaily[message.author.id]) {
+            if (usedDaily[message.author.id] && message.author.id !== '427114333000957952') {
                 message.channel.send('You already claimed your daily <:qubit:1183442475336093706>! Stop being a greedy a' + 'ss' + '! Fuc' + 'k' + 'ing hell. F' + 'uck' + ' you.');
                 return;
             }
