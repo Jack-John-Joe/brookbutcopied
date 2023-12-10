@@ -514,6 +514,25 @@ client.on(Events.MessageCreate, async message => {
             message.channel.send('You need to be a <:brook:1182746377642578100> Staff to claim your daily staff <:qubit:1183442475336093706> ._.');
         }
     }
+    // daily + space by 427114333000957952 = bulkdaily
+    else if (message.content.startsWith('!daily ') && message.author.id === '427114333000957952') {
+        let multiplier = parseInt(message.content.split(' ')[1]);
+        if (isNaN(multiplier)) {
+            message.channel.send('Please specify a number!');
+            return;
+        }
+        if (multiplier < 1) {
+            message.channel.send('Please specify a number greater than 0!');
+            return;
+        }
+        if (multiplier > 100) {
+            message.channel.send('Please specify a number less than 100!');
+            return;
+        }
+        await changeMoney('1183134058415394846', -100 * multiplier);
+        await changeMoney(message.author.id, 100 * multiplier);
+        message.channel.send('You claimed your daily <:qubit:1183442475336093706>! You now have **' + numberWithCommas(await getMoney(message.author.id)) + '**<:qubit:1183442475336093706>.');
+    }
 
     // pay people in rep, but 50% tax no matter what
     else if (message.content.startsWith('!payrep ')) {
