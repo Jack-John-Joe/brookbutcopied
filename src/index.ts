@@ -255,7 +255,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     }
 
     // if knife on message that meets activemurder condition, timeout
-    if (reaction.emoji.name === 'knife' && activeMurders[user.id] && activeMurders[user.id].condition(message)) {
+    if ((reaction.emoji.name === 'knife' || reaction.emoji.name?.includes('🔪')) && activeMurders[user.id] && activeMurders[user.id].condition(message)) {
         // timeout
         let guild = await message.guild!.fetch();
         let member = await new Promise<GuildMember | null>((resolve, reject) => {
