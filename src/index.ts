@@ -8,6 +8,48 @@ const db = new Database("brook.sqlite");
 db.run("create table if not exists upvotes (source_message_id text, new_message_id text);");
 // create table reputation (user_id text, reputation integer); if not exists
 db.run("create table if not exists reputation (user_id text, reputation integer);");
+// create a real
+db.run("create table if not exists economy (user_id text, money integer);");
+
+// if no entry of 427114333000957952 in economy, insert 1 million so we can start the currency without having admin commands to do so
+let stmt = db.query("select * from economy where user_id = ?");
+let rows = stmt.all('427114333000957952');
+if (rows.length === 0) {
+    db.run("insert into economy (user_id, money) values (?, ?)", [
+        '427114333000957952',
+        1000000
+    ]);
+} // there is no way to edit the currency, to keep it fair
+
+async function changeMoney(user_id: string, amount: number) {
+    let stmt = db.query("select * from economy where user_id = ?");
+    let rows = stmt.all(user_id);
+    if (rows.length > 0) {
+        // update
+        db.run("update economy set money = money + ? where user_id = ?", [
+            amount,
+            user_id
+        ]);
+    }
+    else {
+        // insert
+        db.run("insert into economy (user_id, money) values (?, ?)", [
+            user_id,
+            amount
+        ]);
+    }
+}
+
+async function getMoney(user_id: string): Promise<number> {
+    let stmt = db.query("select * from economy where user_id = ?");
+    let rows = stmt.all(user_id);
+    if (rows.length > 0) {
+        return (rows[0] as any).money;
+    }
+    else {
+        return 0;
+    }
+}
 
 // Bun automatically reads .env files, so we don't need dotenv or anything
 
@@ -316,46 +358,135 @@ client.on(Events.MessageCreate, async message => {
         }
     }
 
+    // !bal or !balance or !money or !qubit shows your money
+    else if (message.content === '!bal' || message.content === '!balance' || message.content === '!money' || message.content === '!qubit') {
+        let money = await getMoney(message.author.id);
+        message.channel.send(`You have **${money}**<:qubit:1183442475336093706>!`);
+    }
+
+    // !bal @user or !balance @user or !money @user or !qubit @user shows @user's money
+    else if (message.content.startsWith('!bal ') || message.content.startsWith('!balance ') || message.content.startsWith('!money ') || message.content.startsWith('!qubit ')) {
+        let user = message.mentions.users.first();
+        if (!user) {
+            message.channel.send('Please mention a user!');
+            return;
+        }
+        let money = await getMoney(user.id);
+        message.channel.send(`<@${user.id}> has **${money}**<:qubit:1183442475336093706>!`);
+    }
+
+    // pay people
+    else if (message.content.startsWith('!pay ')) {
+        let user = message.mentions.users.first();
+        if (!user) {
+            message.channel.send('Please mention a user!');
+            return;
+        }
+        let amount = parseInt(message.content.split(' ')[2]);
+        if (isNaN(amount)) {
+            message.channel.send('Please specify an amount!');
+            return;
+        }
+        if (amount < 1) {
+            message.channel.send('Please specify an amount greater than 0!');
+            return;
+        }
+        let money = await getMoney(message.author.id);
+        if (money < amount) {
+            message.channel.send('You don\'t have enough money!');
+            return;
+        }
+        await changeMoney(message.author.id, -amount); // make sure to await so there isnt a moment that the recipient has the money and the giver at the same time
+        await changeMoney(user.id, amount);
+        message.channel.send(`You gave <@${user.id}> **${amount}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${await getMoney(message.author.id)}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${await getMoney(user.id)}**<:qubit:1183442475336093706>.`);
+    }
+
+
+
     // leaderboard
     else if (message.content === '!leaderboard') {
-        let stmt = db.query("select * from reputation order by reputation desc limit 10");
-        let rows: {
-            user_id: string,
-            reputation: number
-        }[] = stmt.all() as any;
-        let embed = {
-            color: 0x86c7ff,
-            title: 'Reputation Leaderboard',
-            description: ''
-        };
-        let index = 0;
-        let leaderboardCount = 0;
-        while (true) {
-            if (index >= rows.length) break;
-            if (leaderboardCount >= 10) break;
-
-            let row = rows[index];
-            let user = await client.users.fetch(row.user_id);
-            let guild = await message.guild!.fetch();
-            let member = await new Promise<GuildMember | null>((resolve, reject) => {
-                guild.members.fetch(user).then(member => {
-                    resolve(member);
-                }).catch(err => {
-                    resolve(null);
-                });
-            });
-
-            if (!member) {
-                index++;
-                continue;
+        {
+            let stmt = db.query("select * from reputation order by reputation desc limit 10");
+            let rows: {
+                user_id: string,
+                reputation: number
+            }[] = stmt.all() as any;
+            let embed = {
+                color: 0x86c7ff,
+                title: 'Reputation Leaderboard',
+                description: ''
             };
+            let index = 0;
+            let leaderboardCount = 0;
+            while (true) {
+                if (index >= rows.length) break;
+                if (leaderboardCount >= 10) break;
 
-            embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.reputation}** reputation\n`;
+                let row = rows[index];
+                let user = await client.users.fetch(row.user_id);
+                let guild = await message.guild!.fetch();
+                let member = await new Promise<GuildMember | null>((resolve, reject) => {
+                    guild.members.fetch(user).then(member => {
+                        resolve(member);
+                    }).catch(err => {
+                        resolve(null);
+                    });
+                });
 
-            index++;
-            leaderboardCount++;
+                if (!member) {
+                    index++;
+                    continue;
+                };
+
+                embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.reputation}** reputation\n`;
+
+                index++;
+                leaderboardCount++;
+            }
+            message.channel.send({ embeds: [embed] });
         }
-        message.channel.send({ embeds: [embed] });
+
+        {
+            // same but for money
+            let stmt = db.query("select * from economy order by money desc limit 10");
+            let rows: {
+                user_id: string,
+                money: number
+            }[] = stmt.all() as any;
+            let embed = {
+                color: 0x86c7ff,
+                title: 'Qubit Leaderboard',
+                description: ''
+            };
+            let index = 0;
+            let leaderboardCount = 0;
+            while (true) {
+                if (index >= rows.length) break;
+                if (leaderboardCount >= 10) break;
+
+                let row = rows[index];
+                let user = await client.users.fetch(row.user_id);
+                let guild = await message.guild!.fetch();
+                let member = await new Promise<GuildMember | null>((resolve, reject) => {
+                    guild.members.fetch(user).then(member => {
+                        resolve(member);
+                    }).catch(err => {
+                        resolve(null);
+                    });
+                });
+
+                if (!member) {
+                    index++;
+                    continue;
+                };
+
+                embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.money}**<:qubit:1183442475336093706>\n`;
+
+                index++;
+                leaderboardCount++;
+            }
+            message.channel.send({ embeds: [embed] });
+        }
     }
 });
 
