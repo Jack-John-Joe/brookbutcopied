@@ -40,6 +40,11 @@ async function changeMoney(user_id: string, amount: number) {
     }
 }
 
+function numberWithCommas(x: number) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+
 async function getMoney(user_id: string): Promise<number> {
     let stmt = db.query("select * from economy where user_id = ?");
     let rows = stmt.all(user_id);
@@ -379,6 +384,11 @@ client.on(Events.MessageCreate, async message => {
     if (message.author.id === client.user!.id) return;
     if (!message.guild || message.guild.id !== '1182500877173522462') return;
 
+    // !help says no
+    if (message.content === '!help') {
+        message.channel.send('In order to allow users to discover commands on their own, no help is provided.\n\nIn other words, good luck nerd.');
+    }
+
     // !rep shows your rep
     if (message.content === '!rep') {
         let stmt = db.query("select * from reputation where user_id = ?");
@@ -411,7 +421,7 @@ client.on(Events.MessageCreate, async message => {
     // !bal or !balance or !money or !qubit shows your money
     else if (message.content === '!bal' || message.content === '!balance' || message.content === '!money' || message.content === '!qubit') {
         let money = await getMoney(message.author.id);
-        message.channel.send(`You have **${money}**<:qubit:1183442475336093706>!`);
+        message.channel.send(`You have **${numberWithCommas(money)}**<:qubit:1183442475336093706>!`);
     }
 
     // !bal @user or !balance @user or !money @user or !qubit @user shows @user's money
@@ -422,7 +432,7 @@ client.on(Events.MessageCreate, async message => {
             return;
         }
         let money = await getMoney(user.id);
-        message.channel.send(`<@${user.id}> has **${money}**<:qubit:1183442475336093706>!`);
+        message.channel.send(`<@${user.id}> has **${numberWithCommas(money)}**<:qubit:1183442475336093706>!`);
     }
 
     // pay people
@@ -472,8 +482,10 @@ client.on(Events.MessageCreate, async message => {
         // make sure to await so there isnt a moment that the recipient has the money and the giver at the same time
         await changeMoney(message.author.id, -amount);
         await changeMoney(user.id, amount - taxA - taxB);
-        message.channel.send(`You gave <@${user.id}> **${amount}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${await getMoney(message.author.id)}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${await getMoney(user.id)}**<:qubit:1183442475336093706>.\n\nNote: taxes may have been applied.`);
+        message.channel.send(`You gave <@${user.id}> **${numberWithCommas(amount)}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${numberWithCommas(await getMoney(message.author.id))}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${numberWithCommas(await getMoney(user.id))}**<:qubit:1183442475336093706>.\n\nNote: taxes may have been applied.`);
     }
+
+    // if user has 1182740620075352104 role
 
     // pay people in rep, but 50% tax no matter what
     else if (message.content.startsWith('!payrep ')) {
@@ -547,7 +559,7 @@ client.on(Events.MessageCreate, async message => {
         if (rows.length > 0) {
             newRecipientRep = (rows[0] as any).reputation;
         }
-        message.channel.send(`You gave <@${user.id}> **${amount}** reputation!\n\n<@${message.author.id}> now has **${newAuthorRep}** reputation.\n<@${user.id}> now has **${newRecipientRep}** reputation.\n\nNote: taxes may have been applied.`);
+        message.channel.send(`You gave <@${user.id}> **${numberWithCommas(amount)}** reputation!\n\n<@${message.author.id}> now has **${numberWithCommas(newAuthorRep)}** reputation.\n<@${user.id}> now has **${numberWithCommas(newRecipientRep)}** reputation.\n\nNote: taxes may have been applied.`);
     }
 
 
@@ -616,7 +628,7 @@ client.on(Events.MessageCreate, async message => {
         }
 
         if (activeMurders[message.author.id]) {
-            message.channel.send('I honestly cannot believe your lack of commitment, ' + message.author.username + '. You\'re already trying to injur someone else before completing your previous injur? You\'re a monster.\n\nWhatever. I\'ve gone ahead and cancelled your previous injur. You\'re free to injur someone else now.');
+            message.channel.send('I honestly cannot believe your lack of commitment, ' + message.author.username + '. You\'re already trying to injur someone else before completing your previous injure? You\'re a monster. You absolutely disgust me. Holy f' + 'uck' + 'ing shi' + 'it.\n\nWhatever. I\'ve gone ahead and cancelled your previous injur. You\'re free to injur someone else now.');
             delete activeMurders[message.author.id];
         }
 
@@ -729,7 +741,7 @@ client.on(Events.MessageCreate, async message => {
             let embed = {
                 color: 0x86c7ff,
                 title: 'Qubit Leaderboard',
-                description: ''
+                description: '**1 million <:qubit:1183442475336093706>** are currently in circulation.\n\n'
             };
             let index = 0;
             let leaderboardCount = 0;
@@ -753,7 +765,7 @@ client.on(Events.MessageCreate, async message => {
                     continue;
                 };
 
-                embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.money}**<:qubit:1183442475336093706>\n`;
+                embed.description += `${leaderboardCount + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${numberWithCommas(row.money)}**<:qubit:1183442475336093706>\n`;
 
                 index++;
                 leaderboardCount++;
