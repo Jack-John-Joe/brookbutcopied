@@ -330,6 +330,8 @@ client.on(Events.MessageCreate, async message => {
         };
         let i = 0;
         while (true) {
+            if (i >= rows.length) break;
+
             let row = rows[i];
             let user = await client.users.fetch(row.user_id);
             let guild = await message.guild!.fetch();
@@ -341,11 +343,15 @@ client.on(Events.MessageCreate, async message => {
                 });
             });
 
-            if (!member) continue;
+            if (!member) {
+                i++;
+                continue;
+            };
 
             embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
 
             console.log('i was ' + i);
+
             i++;
             if (i >= 10) break;
         }
