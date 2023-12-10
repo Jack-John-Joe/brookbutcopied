@@ -656,7 +656,7 @@ client.on(Events.MessageCreate, async message => {
         }
 
         if (activeMurders[message.author.id]) {
-            message.channel.send('I honestly cannot believe your lack of commitment, ' + message.author.username + '. You\'re already trying to injur someone else before completing your previous injure? You\'re a monster. You absolutely disgust me. Holy f' + 'uck' + 'ing shi' + 'it.\n\nWhatever. I\'ve gone ahead and cancelled your previous injur. You\'re free to injur someone else now.');
+            message.channel.send('I honestly cannot believe your lack of commitment, ' + message.author.username + '. You\'re already trying to injure someone else before completing your previous injure? You\'re a monster. You absolutely disgust me. Holy f' + 'uck' + 'ing shi' + 'it.\n\nWhatever. I\'ve gone ahead and cancelled your previous injur. You\'re free to injur someone else now.');
             delete activeMurders[message.author.id];
         }
 
