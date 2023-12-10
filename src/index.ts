@@ -344,11 +344,10 @@ client.on(Events.MessageCreate, async message => {
             });
 
             if (!member) {
-                i++;
                 continue;
             };
 
-            embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
+            embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}>: **${row.reputation}** reputation\n`;
 
             console.log('i was ' + i);
 
