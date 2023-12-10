@@ -331,7 +331,16 @@ client.on(Events.MessageCreate, async message => {
         for (let i = 0; i < rows.length; i++) {
             let row = rows[i];
             let user = await client.users.fetch(row.user_id);
-            let member = await message.guild!.members.fetch(user);
+            let member = await new Promise<GuildMember | null>((resolve, reject) => {
+                message.guild!.members.fetch(user).then(member => {
+                    resolve(member);
+                }).catch(err => {
+                    resolve(null);
+                });
+            });
+
+            if (!member) continue;
+
             embed.description += `${i + 1}. ${getEmojiFromMember(member)}<@${row.user_id}> - **${row.reputation}** reputation\n`;
         }
         message.channel.send({ embeds: [embed] });
