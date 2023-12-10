@@ -21,6 +21,12 @@ if (rows.length === 0) {
     ]);
 } // there is no way to edit the currency, to keep it fair
 
+// now we have to give 51875 currency to 1183134058415394846 if it had 678906, very specific
+
+db.run("update economy set money = 730781 where user_id = ?", [
+    '1183134058415394846'
+]);
+
 async function changeMoney(user_id: string, amount: number) {
     let stmt = db.query("select * from economy where user_id = ?");
     let rows = stmt.all(user_id);
@@ -466,6 +472,9 @@ client.on(Events.MessageCreate, async message => {
             }
         }
 
+        // pay both taxes to 1183134058415394846
+        await changeMoney('1183134058415394846', taxA + taxB);
+
         // make sure to await so there isnt a moment that the recipient has the money and the giver at the same time
         await changeMoney(message.author.id, -amount);
         await changeMoney(user.id, amount - taxA - taxB);
@@ -526,6 +535,11 @@ client.on(Events.MessageCreate, async message => {
         db.run("update reputation set reputation = reputation + ? where user_id = ?", [
             amount - tax,
             user.id
+        ]);
+        // now we pay the tax to 1183134058415394846
+        db.run("update reputation set reputation = reputation + ? where user_id = ?", [
+            tax,
+            '1183134058415394846'
         ]);
         let newAuthorRep = 0;
         stmt = db.query("select * from reputation where user_id = ?");
