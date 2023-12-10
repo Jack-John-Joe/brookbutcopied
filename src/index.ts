@@ -272,12 +272,23 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
             else {
                 member.timeout(24 * 60 * 60 * 1000, 'Injured by ' + user.username);
             }
+            // timeout the author as well, for 1 hour
+            let authorMember = await new Promise<GuildMember | null>((resolve, reject) => {
+                guild.members.fetch(user.id).then(member => {
+                    resolve(member);
+                }).catch(err => {
+                    resolve(null);
+                });
+            });
+            if (authorMember) {
+                authorMember.timeout(60 * 60 * 1000, 'Timeout for injuring someone');
+            }
             // remove all reactions
             message.reactions.removeAll();
             // send message
             let embed = {
                 color: 0x86c7ff,
-                description: `**${member.displayName}** has been ${activeMurders[user.id].type === 'injur' ? 'injured' : 'murdered'} by <@${user.id}>!`
+                description: `**${member.displayName}** has been ${activeMurders[user.id].type === 'injur' ? 'injured' : 'murdered'} by <@${user.id}>!\n\nThe ${activeMurders[user.id].type === 'injur' ? 'injurer' : 'murderer'} has been timed out for 1 hour.`
             };
             message.channel.send({ embeds: [embed] });
             // delete from activeMurders
@@ -461,6 +472,77 @@ client.on(Events.MessageCreate, async message => {
         message.channel.send(`You gave <@${user.id}> **${amount}**<:qubit:1183442475336093706>!\n\n<@${message.author.id}> now has **${await getMoney(message.author.id)}**<:qubit:1183442475336093706>.\n<@${user.id}> now has **${await getMoney(user.id)}**<:qubit:1183442475336093706>.\n\nNote: taxes may have been applied.`);
     }
 
+    // pay people in rep, but 50% tax no matter what
+    else if (message.content.startsWith('!payrep ')) {
+        let user = message.mentions.users.first();
+        if (!user) {
+            message.channel.send('Please mention a user!');
+            return;
+        }
+        let amount = parseInt(message.content.split(' ')[2]);
+        if (isNaN(amount)) {
+            message.channel.send('Please specify an amount!');
+            return;
+        }
+        if (amount < 1) {
+            message.channel.send('Please specify an amount greater than 0!');
+            return;
+        }
+        let stmt = db.query("select * from reputation where user_id = ?");
+        let rows = stmt.all(message.author.id);
+        if (rows.length > 0) {
+            if ((rows[0] as any).reputation < amount) {
+                message.channel.send('You don\'t have enough reputation!');
+                return;
+            }
+        }
+        else {
+            message.channel.send('You don\'t have enough reputation!');
+            return;
+        }
+        let tax = Math.floor(amount / 2);
+        // insert if not exists
+        stmt = db.query("select * from reputation where user_id = ?");
+        rows = stmt.all(user.id);
+        if (rows.length === 0) {
+            db.run("insert into reputation (user_id, reputation) values (?, ?)", [
+                user.id,
+                0
+            ]);
+        }
+        // same for author even tho its impossible lmao
+        stmt = db.query("select * from reputation where user_id = ?");
+        rows = stmt.all(message.author.id);
+        if (rows.length === 0) {
+            db.run("insert into reputation (user_id, reputation) values (?, ?)", [
+                message.author.id,
+                0
+            ]);
+        }
+        db.run("update reputation set reputation = reputation - ? where user_id = ?", [
+            amount,
+            message.author.id
+        ]);
+        db.run("update reputation set reputation = reputation + ? where user_id = ?", [
+            amount - tax,
+            user.id
+        ]);
+        let newAuthorRep = 0;
+        stmt = db.query("select * from reputation where user_id = ?");
+        rows = stmt.all(message.author.id);
+        if (rows.length > 0) {
+            newAuthorRep = (rows[0] as any).reputation;
+        }
+        let newRecipientRep = 0;
+        stmt = db.query("select * from reputation where user_id = ?");
+        rows = stmt.all(user.id);
+        if (rows.length > 0) {
+            newRecipientRep = (rows[0] as any).reputation;
+        }
+        message.channel.send(`You gave <@${user.id}> **${amount}** reputation!\n\n<@${message.author.id}> now has **${newAuthorRep}** reputation.\n<@${user.id}> now has **${newRecipientRep}** reputation.\n\nNote: taxes may have been applied.`);
+    }
+
+
     // !injur <mention> is a command that then asks you to find a message of the injured person that meets a certain condition, and react to it with :knife:. regardless of if you find it or not, you lose 50 rep
     else if (message.content.startsWith('!injur ') || message.content.startsWith('!injure ') || message.content.startsWith('!murder ') || message.content.startsWith('!kill ')) {
         // figure out if kill or injur was used
@@ -478,9 +560,9 @@ client.on(Events.MessageCreate, async message => {
                 return !message.content.includes('e');
             }
         }, {
-            text: 'is a reply',
+            text: 'is a reply without including the letter A',
             condition: (message: Message) => {
-                return message.reference !== null;
+                return message.reference !== null && !message.content.includes('a')
             }
         }, {
             text: 'has a link in it',
@@ -488,9 +570,9 @@ client.on(Events.MessageCreate, async message => {
                 return message.content.includes('http://') || message.content.includes('https://');
             }
         }, {
-            text: 'has a mention in it',
+            text: 'has 2 mentions in it, but no exclamation mark',
             condition: (message: Message) => {
-                return message.mentions.users.size > 0;
+                return message.mentions.users.size > 1 && !message.content.includes('!');
             }
         }, {
             text: 'has an attachment',
@@ -498,19 +580,19 @@ client.on(Events.MessageCreate, async message => {
                 return message.attachments.size > 0;
             }
         }, {
-            text: 'includes the letter z',
+            text: 'includes the letter z but not e',
             condition: (message: Message) => {
-                return message.content.includes('z');
+                return message.content.includes('z') && !message.content.includes('e');
             }
         }, {
-            text: 'includes the letter q',
+            text: 'includes the letter q but no vowels',
             condition: (message: Message) => {
-                return message.content.includes('q');
+                return message.content.includes('q') && !message.content.includes('a') && !message.content.includes('e') && !message.content.includes('i') && !message.content.includes('o') && !message.content.includes('u') && !message.content.includes('y');
             }
         }, {
-            text: 'includes the letter x',
+            text: 'includes the letter x but not an exclamation mark',
             condition: (message: Message) => {
-                return message.content.includes('x');
+                return message.content.includes('x') && !message.content.includes('!');
             }
         }];
 
@@ -533,10 +615,10 @@ client.on(Events.MessageCreate, async message => {
         let condition = conditions[Math.floor(Math.random() * conditions.length)];
 
         if (!kill) {
-            message.channel.send('# Injury Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '** and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 day.\n\nNote: **50 reputation** has been deducted from your account.');
+            message.channel.send('# Injury Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '**, and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 day.\n\nNote: **50 reputation** has been deducted from your account.');
         }
         else {
-            message.channel.send('# Murder Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '** and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 week.\n\nNote: **250 reputation** has been deducted from your account.');
+            message.channel.send('# Murder Receipt\n\nPlease find a message by <@' + user.id + '> that **' + condition.text + '**, and react to it with :knife:.\n\nOnce that\'s done, they will be timed out for 1 week.\n\nNote: **250 reputation** has been deducted from your account.');
         }
 
         activeMurders[message.author.id] = {
