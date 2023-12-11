@@ -733,8 +733,6 @@ client.on(Events.MessageCreate, async message => {
     }
 
 
-
-
     // leaderboard
     else if (message.content === '!leaderboard') {
         {
